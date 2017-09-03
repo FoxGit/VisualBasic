@@ -1,6 +1,6 @@
-#H1 Accesstabellen für standDyna konvertieren und Belegungsdichte erstellen
+# Accesstabellen für standDyna konvertieren und Belegungsdichte erstellen
 
-Diese Anleitung kann auf DC oder DG Tabellen (im Folgen Datentabelle genannt) angewendet werden.
+## Diese Anleitung kann auf DC oder DG Tabellen (im Folgen Datentabelle genannt) angewendet werden.
 
 1. Excel vorbereiten, Entwicklertools aktivieren
 ⋅⋅1. Klicken Sie auf die Registerkarte Datei.
