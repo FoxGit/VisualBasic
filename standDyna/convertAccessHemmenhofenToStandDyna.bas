@@ -2,10 +2,6 @@
 '' Programmm:       ConvertAccessHemmenhofenToStandDyna
 '' Beschreibung:    Konvertiert Accessdaten im "Hemmenhofen-Format" für die Benutzung von standDyna.
 ''                  Stellt außerdem die Belegungsdichte in einer eigenen Tabelle dar.
-'' Veränderungen----------------------------------------------------------------------------------------
-'' Datum        Entwickler      Veränderung
-'' 29.05.2017   Jan Hansen      Initialer Build
-'' 27.08.2017   Jan Hansen      Korrekturen
 ''======================================================================================================
 
 Sub ConvertAccessHemmenhofenToStandDyna()
@@ -18,14 +14,12 @@ Sub ConvertAccessHemmenhofenToStandDyna()
     Dim DCName As String
     Dim DGName As String
     Dim belegungsdichteSheetName As String
+    Dim dateDiff As Long
 
     dynaSheetName = "standDyna"
     DCName = "DC"
     DGName = "DG"
     belegungsdichteSheetName = "Belegungsdichte"
-
-    minStartDate = getMinStartDate()
-    maxEndDate = getMaxEndDate()
 
     If sheetExists(DCName) Then
         Set sourceSheet = Worksheets(DCName)
@@ -42,13 +36,18 @@ Sub ConvertAccessHemmenhofenToStandDyna()
 
     sourceSheet.Activate
 
-    Set dynaSheet = insertNewTable(minStartDate, maxEndDate, dynaSheetName)
+    minStartDate = getMinStartDate(sourceSheet)
+    maxEndDate = getMaxEndDate(sourceSheet)
 
-    Set belegungsdichteSheet = insertNewTable(minStartDate, maxEndDate, belegungsdichteSheetName)
+    dateDiff = maxEndDate - minStartDate
+
+    Set dynaSheet = insertNewTable(dateDiff + 2, minStartDate, dynaSheetName)
+
+    Set belegungsdichteSheet = insertNewTable(dateDiff + 2, minStartDate, belegungsdichteSheetName)
 
     sourceSheet.Activate
 
-    Call insertValues(maxEndDate - minStartDate, sourceSheet, dynaSheet, belegungsdichteSheet)
+    Call insertValues(dateDiff, sourceSheet, dynaSheet, belegungsdichteSheet)
 
     dynaSheet.Activate
 
@@ -57,18 +56,19 @@ End Sub
 
 ''======================================================================================================
 '' Funktion:        insertNewTable
-'' Beschreibung:    Konvertiert Accessdaten im "Hemmenhofen-Format"
-''                  für die Benutzung von standDyna
+'' Beschreibung:    Füllt die Jahrespalte von dem geringsten Startjahr bis zum größten Endjahr
 '' Parameter:       minStartDate (long) - geringstes Startjahr der Quelltabelle
 ''                  maxEndDate (long) - höchstes Endjahr der Quelltabelle
 ''                  newSheetName (String) - Name der Zieltabelle
-'' Rückgabe:        dynaSheet (Worksheet) - Zieltabelle (dynaSheet)
+'' Rückgabe:        markWaldkanteSheet (Worksheet) - Zieltabelle (markWaldkanteSheet)
 ''======================================================================================================
-Function insertNewTable(minStartDate As Long, maxEndDate As Long, newSheetName As String) As Worksheet
+Function insertNewTable(diff As Long, minStartDate As Long, newSheetName As String) As Worksheet
     Dim wks As Worksheet
     Dim Rng As Range
+    Dim counter As Long
+    Dim daten() As Integer
 
-    'falls es schon eine standDyna Tabelle gibt -> Löschen
+    'falls es schon eine newSheetName Tabelle gibt -> Löschen
     If sheetExists(newSheetName) Then
         'Warnfenster für das Löschen des Datenblattes deaktivieren
         Application.DisplayAlerts = False
@@ -80,19 +80,16 @@ Function insertNewTable(minStartDate As Long, maxEndDate As Long, newSheetName A
     Set wks = Worksheets.Add(Worksheets(1))
     wks.Name = newSheetName
 
-    Dim lo As ListObject
-    Dim rng1 As Range
-    Dim diff As Long
-    diff = maxEndDate - minStartDate + 2
+    'Größe des Datenarrays festlegen
+    ReDim daten(diff)
 
-    Dim arr() As Integer
-    ReDim arr(diff)
+    'Daten ins Array eintragen
+    For counter = 0 To diff
+        daten(counter) = minStartDate + counter
+    Next counter
 
-    For i = 0 To diff
-        arr(i) = minStartDate + i
-    Next i
-
-    wks.Range("A2:A" & diff).Value = WorksheetFunction.Transpose(arr)
+    'Daten ins Worksheet übertragen
+    wks.Range("A2:A" & diff).Value = WorksheetFunction.Transpose(daten)
 
     Set insertNewTable = wks
 
@@ -275,39 +272,24 @@ End Function
 ''======================================================================================================
 '' Funktion:        getMinStartDate
 '' Beschreibung:    Sucht den geringsten Wert in der Anfangsjahrspalte
+'' Parameter:       sourceSheet (Sheet) - Quelltabelle
 '' Rückgabe:        geringsten Wert in der Anfangsjahrspalte (Long)
 ''======================================================================================================
-Function getMinStartDate() As Long
+Function getMinStartDate(sourceSheet) As Long
 
     Dim anfangsjahrSearchString As String
-    Dim aCell As Range
+    Dim sourceCell As Range
     Dim columnLetterVar As String
-    Dim mySheet As Worksheet
 
     anfangsjahrSearchString = "Anfangsjahr"
 
-
-    'Tabellenblatt finden
-    If sheetExists("DC") Then
-        Set mySheet = Worksheets("DC")
-    End If
-
-    If sheetExists("DG") Then
-        Set mySheet = Worksheets("DG")
-    End If
-
-    If mySheet Is Nothing Then
-        MsgBox "Weder Tabelle DC noch DG gefunden. ;(..."
-        End
-    End If
-
     'Spalte mit dem Namen Anfangsjahr finden
-    Set aCell = mySheet.Rows(1).Find(What:=anfangsjahrSearchString, LookIn:=xlValues, _
+    Set sourceCell = sourceSheet.Rows(1).Find(What:=anfangsjahrSearchString, LookIn:=xlValues, _
     LookAt:=xlWhole, SearchOrder:=xlByRows, SearchDirection:=xlNext, _
     MatchCase:=False, SearchFormat:=False)
 
     'Buchstaben der Spalte finden
-    columnLetterVar = columnLetter(aCell.Column)
+    columnLetterVar = columnLetter(sourceCell.Column)
 
     'kleinstes Anfangsjahr finden
     Dim c As Range
@@ -320,39 +302,24 @@ End Function
 ''======================================================================================================
 '' Funktion:        getMaxEndDate
 '' Beschreibung:    Sucht den höchsten Wert in der Endjahrspalte
+'' Parameter:       sourceSheet (Sheet) - Quelltabelle
 '' Rückgabe:        höchsten Wert in der Endjahrspalte (Long)
 ''======================================================================================================
-Function getMaxEndDate() As Long
+Function getMaxEndDate(sourceSheet) As Long
 
     Dim endjahrSearchString As String
-    Dim aCell As Range
+    Dim sourceCell As Range
     Dim columnLetterVar As String
-    Dim mySheet As Worksheet
 
     endjahrSearchString = "Endjahr"
 
-    'Tabellenblatt finden
-    If sheetExists("DC") Then
-        Set mySheet = Worksheets("DC")
-    End If
-
-    If sheetExists("DG") Then
-        Set mySheet = Worksheets("DG")
-    End If
-
-    If mySheet Is Nothing Then
-        MsgBox "Weder Tabelle DC noch DG gefunden. ;(..."
-        End
-    End If
-
-
     'Spalte mit dem Namen Anfangsjahr finden
-    Set aCell = mySheet.Rows(1).Find(What:=endjahrSearchString, LookIn:=xlValues, _
+    Set sourceCell = sourceSheet.Rows(1).Find(What:=endjahrSearchString, LookIn:=xlValues, _
     LookAt:=xlWhole, SearchOrder:=xlByRows, SearchDirection:=xlNext, _
     MatchCase:=False, SearchFormat:=False)
 
     'größtes Endjahr finden
-    getMaxEndDate = Application.WorksheetFunction.Max(mySheet.Columns(aCell.Column))
+    getMaxEndDate = Application.WorksheetFunction.max(sourceSheet.Columns(sourceCell.Column))
 End Function
 
 ''======================================================================================================
@@ -370,6 +337,4 @@ Function sheetExists(sheetToFind As String) As Boolean
         End If
     Next Sheet
 End Function
-
-
 
