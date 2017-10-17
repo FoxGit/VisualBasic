@@ -307,10 +307,10 @@ Function getMaxEndDate(sourceSheet) As Long
         If Mid(splintDatierungString, 1, 1) = "S" Then
             splintDatierungJahr = Mid(Cells(counter, splintDatierungCell.Column).Value, 3, Len(splintDatierungString) - 2)
 
-            ' change / adjust the size of array
+            ' Array Größe anpassen
             ReDim Preserve splintDatierungen(0 To UBound(splintDatierungen) + 1) As Variant
 
-            ' add value on the end of the array
+            ' Jahr ins Array schieben
             splintDatierungen(UBound(splintDatierungen)) = splintDatierungJahr
         Else
             'aus dem Loop springen
