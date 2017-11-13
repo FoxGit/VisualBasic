@@ -158,7 +158,8 @@ Function insertValues(diff As Long, sourceSheet As Worksheet, dynaSheet As Works
     'zählen, wie viele Werte Zeilen es gibt, über die iterieren wir
     numberOfWerte = WorksheetFunction.Count(nummerValueCell.EntireColumn)
 
-    For i = 2 To numberOfWerte
+    'wir beginnen in der Zeiltabelle erst in der zweiten Spalte
+    For i = 2 To numberOfWerte + 1
         'Wert des Feldes Nummer in der derzeitigen Reihe holen
         nummer = Cells(i, nummerValueCell.Column).Value
 
@@ -319,7 +320,7 @@ Function getMaxEndDate(sourceSheet) As Long
     MatchCase:=False, SearchFormat:=False)
 
     'größtes Endjahr finden
-    getMaxEndDate = Application.WorksheetFunction.max(sourceSheet.Columns(sourceCell.Column))
+    getMaxEndDate = Application.WorksheetFunction.Max(sourceSheet.Columns(sourceCell.Column))
 End Function
 
 ''======================================================================================================
@@ -337,4 +338,3 @@ Function sheetExists(sheetToFind As String) As Boolean
         End If
     Next Sheet
 End Function
-
