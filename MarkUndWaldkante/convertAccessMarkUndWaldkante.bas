@@ -1,7 +1,8 @@
 ''======================================================================================================
 '' Programmm:       ConvertAccessMarkUndWaldkante
 '' Beschreibung:    Extrahiert Daten für Mark, Marknähe, Waldkante und Splint aus einer Hemmenhofen-
-''                  tabelle und schreibt sie einzelnd in einer neue.
+''                  tabelle und schreibt sie einzelnd in einer neue. Schreibt zu jedem Fund wahlweise
+''                  die Nummern oder wenn vorhanden die DG ODER nur die Nummern auf.
 ''======================================================================================================
 
 Sub ConvertAccessMarkUndWaldkante()
@@ -12,6 +13,11 @@ Sub ConvertAccessMarkUndWaldkante()
     Dim markWaldkanteSheet As Worksheet
     Dim sourceSheet As Worksheet
     Dim dateDiff As Long
+    Dim nummernAndDG As Boolean
+
+    'Nummern UND DG eintragen?
+    nummernAndDG = False
+
 
     DCName = "DC"
     markWaldkanteSheetName = "Waldkante"
@@ -37,7 +43,7 @@ Sub ConvertAccessMarkUndWaldkante()
 
     sourceSheet.Activate
 
-    Call insertValues(dateDiff, sourceSheet, markWaldkanteSheet)
+    Call insertValues(dateDiff, sourceSheet, markWaldkanteSheet, nummernAndDG)
 
     markWaldkanteSheet.Activate
 
@@ -51,20 +57,56 @@ End Sub
 ''                  Quelltabelle
 ''                  sourceSheet (Worksheet) - Quelltabelle (DC oder DG)
 ''                  markWaldkanteSheet (Worksheet) - Zieltabelle (markWaldkanteSheet)
+''                  nummernAndDG - Flag, ob nur Nummern oder Nummern und DG eingetragen werden
 ''======================================================================================================
-Function insertValues(diff As Long, sourceSheet As Worksheet, markWaldkanteSheet As Worksheet)
+Function insertValues(diff As Long, sourceSheet As Worksheet, markWaldkanteSheet As Worksheet, nummernAndDG As Boolean)
     Dim anfangsjahrString As String
     Dim markString As String
     Dim datierungString As String
+    Dim nummerString As String
+    Dim ortscodeString As String
     Dim getEndDat1e As Double
     Dim jahr As Long
     Dim anfangsjahrCell As Range
     Dim datierungCell As Range
     Dim markCell As Range
+    Dim nummerCell As Range
+    Dim ortscodeCell As Range
     Dim startJahr As Variant
     Dim waldkanteMatch As Variant
     Dim splintMatch As Variant
     Dim counter As Long
+    Dim ortsCode As String
+    Dim ortsCodeEndung As String
+    Dim markNummer As String
+    Dim splintNummer As String
+    Dim sourceNummer As String
+    Dim sourceDG As String
+    Dim mark As Long
+    Dim marknaehe As Long
+    Dim waldkante As Long
+    Dim splint As Long
+    Dim DGSearchString As String
+    Dim DGValueCell As Range
+    Dim splintRow As Variant
+    Dim splintTempCell As Range
+    Dim nummerSearchString As String
+    Dim nummerValueCell As Range
+    Dim numberOfWerte As Long
+    Dim sourcejahr As Long
+    Dim markRow As Variant
+    Dim destAnfangsjahrRange As Range
+    Dim markTempCell As Range
+    Dim destAnfangsjahrFound As Boolean
+    Dim marknaeheNummer As String
+    Dim waldkanteNummer As String
+    Dim markWaldkanteTemp As String
+    Dim marknaeheTemp As String
+    Dim waldkanteRow As Variant
+    Dim waldkanteTempCell As Range
+    Dim waldkanteTemp As String
+    Dim splintTemp As String
+
 
     'entsprechende Werte finden
     anfangsjahrString = "Anfangsjahr"
@@ -72,82 +114,205 @@ Function insertValues(diff As Long, sourceSheet As Worksheet, markWaldkanteSheet
     Set anfangsjahrCell = sourceSheet.Rows(1).Find(What:=anfangsjahrString, LookIn:=xlValues, _
     LookAt:=xlWhole, SearchOrder:=xlByRows, SearchDirection:=xlNext, _
     MatchCase:=False, SearchFormat:=False)
+
     markString = "Mark"
     'Spalte mit dem Namen Mark finden
-
     Set markCell = sourceSheet.Rows(1).Find(What:=markString, LookIn:=xlValues, _
     LookAt:=xlWhole, SearchOrder:=xlByRows, SearchDirection:=xlNext, _
     MatchCase:=False, SearchFormat:=False)
+
     datierungString = "Datierung"
     'Spalte mit dem Namen Datierung finden
-
     Set datierungCell = sourceSheet.Rows(1).Find(What:=datierungString, LookIn:=xlValues, _
     LookAt:=xlWhole, SearchOrder:=xlByRows, SearchDirection:=xlNext, _
     MatchCase:=False, SearchFormat:=False)
 
-    'wir iterieren über die Jahre der Zieltabelle
-    For counter = 1 To diff + 1
+    nummerString = "Nummer"
+    'Spalte mit dem Namen Nummer finden
+    Set nummerCell = sourceSheet.Rows(1).Find(What:=nummerString, LookIn:=xlValues, _
+    LookAt:=xlWhole, SearchOrder:=xlByRows, SearchDirection:=xlNext, _
+    MatchCase:=False, SearchFormat:=False)
 
-        'aktuelles Jahr
-        jahr = markWaldkanteSheet.Cells(counter + 1, 1).Value
+    ortscodeString = "Ortscode"
+    'Spalte mit dem Namen Nummer finden
+    Set ortscodeCell = sourceSheet.Rows(1).Find(What:=ortscodeString, LookIn:=xlValues, _
+    LookAt:=xlWhole, SearchOrder:=xlByRows, SearchDirection:=xlNext, _
+    MatchCase:=False, SearchFormat:=False)
 
-        'Zeile des aktuellen Startjahres finden
-        startJahr = Application.Match(jahr, Columns(anfangsjahrCell.Column), 0)
+    'Spalte mit dem Namen Nummer finden
+    nummerSearchString = "Nummer"
+    Set nummerValueCell = sourceSheet.Rows(1).Find(What:=nummerSearchString, LookIn:=xlValues, _
+    LookAt:=xlWhole, SearchOrder:=xlByRows, SearchDirection:=xlNext, _
+    MatchCase:=False, SearchFormat:=False)
 
-        'gibt es einen Eintrag für das Startjahr in der Quelltabelle?
-        If Not IsError(startJahr) Then
+    'Spalte mit dem Namen DG finden
+    DGSearchString = "DG"
+    Set DGValueCell = sourceSheet.Rows(1).Find(What:=DGSearchString, LookIn:=xlValues, _
+    LookAt:=xlWhole, SearchOrder:=xlByRows, SearchDirection:=xlNext, _
+    MatchCase:=False, SearchFormat:=False)
+
+    'zählen, wie viele Werte Zeilen es gibt, über die iterieren wir
+    numberOfWerte = WorksheetFunction.Count(nummerValueCell.EntireColumn)
+    'wir iterieren über die Werte der Quelltabelle
+    For counter = 2 To numberOfWerte + 1
+
+        'Anfangsjahres der aktuellen Zeile der Quelltabelle finden
+        sourcejahr = Cells(counter, anfangsjahrCell.Column).Value
+
+        'Reihe des Anfangsjahres in der Zieltabelle finden
+        If sourcejahr <> 0 Then
+            destAnfangsjahrFound = False
+            Set destAnfangsjahrRange = markWaldkanteSheet.Range("A:A")
+
+            'alle Zellen der Zieltabelle nach dem Anfangsjahr durchsuchen
+            For Each markTempCell In destAnfangsjahrRange
+                If markTempCell.Value = sourcejahr Then
+                    destAnfangsjahrFound = True
+                    markRow = markTempCell.Row
+                End If
+                'aus dem Loop springen, sobald der Wert gefunden wurde
+                If destAnfangsjahrFound Then Exit For
+            Next markTempCell
+
+           'quelltabelle
+            ortsCode = Cells(counter, ortscodeCell.Column).Value
+            ortsCodeEndung = Mid(ortsCode, 6, Len(ortsCode))
+            sourceNummer = Cells(counter, nummerCell.Column).Value
+            sourceDG = Cells(counter, DGValueCell.Column).Value
+
+            'zieltabelle
+            markNummer = markWaldkanteSheet.Cells(markRow, 6).Value
+            marknaeheNummer = markWaldkanteSheet.Cells(markRow, 7).Value
 
             'M A R K
             'Mark und Marknähe anhand des aktuellen Startjahres in der Quelltabelle finden
-            If Cells(startJahr, markCell.Column).Value = "M" Then
+            If Cells(counter, markCell.Column).Value = "M" Then
+                mark = markWaldkanteSheet.Cells(markRow, 2).Value
+
                 'Markdaten in der aktuellen Zeile hochzählen
-                If IsEmpty(markWaldkanteSheet.Cells(counter + 1, 2).Value) Then
-                    markWaldkanteSheet.Cells(counter + 1, 2).Value = 1
+                If mark = 0 Then
+                    markWaldkanteSheet.Cells(markRow, 2).Value = 1
                 Else
-                    markWaldkanteSheet.Cells(counter + 1, 2).Value = markWaldkanteSheet.Cells(counter + 1, 2).Value + 1
+                    markWaldkanteSheet.Cells(markRow, 2).Value = mark + 1
+                End If
+
+                If sourceDG <> "----" And nummernAndDG Then
+                    markWaldkanteTemp = sourceDG
+                Else
+                    markWaldkanteTemp = sourceNummer
+                End If
+
+                If Trim(markNummer & vbNullString) = vbNullString Then
+                    markWaldkanteSheet.Cells(markRow, 6).Value = markWaldkanteTemp & " " & ortsCodeEndung
+                Else
+                    markWaldkanteSheet.Cells(markRow, 6).Value = markNummer & ", " & markWaldkanteTemp & " " & ortsCodeEndung
                 End If
             End If
 
             'M A R K N A E H E
-            If Cells(startJahr, markCell.Column).Value = "Mn" Then
+             If Cells(counter, markCell.Column).Value = "Mn" Then
+                marknaehe = markWaldkanteSheet.Cells(markRow, 3).Value
+
                 'Markdaten in der aktuellen Zeile hochzählen
-                If IsEmpty(markWaldkanteSheet.Cells(counter + 1, 3).Value) Then
-                    markWaldkanteSheet.Cells(counter + 1, 3).Value = 1
+                If marknaehe = 0 Then
+                    markWaldkanteSheet.Cells(markRow, 3).Value = 1
                 Else
-                    markWaldkanteSheet.Cells(counter + 1, 3).Value = markWaldkanteSheet.Cells(counter + 1, 3).Value + 1
+                    markWaldkanteSheet.Cells(markRow, 3).Value = mark + 1
+                End If
+
+                If sourceDG <> "----" And nummernAndDG Then
+                    marknaeheTemp = sourceDG
+                Else
+                    marknaeheTemp = sourceNummer
+                End If
+
+                If Trim(marknaeheNummer & vbNullString) = vbNullString Then
+                    markWaldkanteSheet.Cells(markRow, 7).Value = marknaeheTemp & " " & ortsCodeEndung
+                Else
+                    markWaldkanteSheet.Cells(markRow, 7).Value = marknaeheNummer & ", " & marknaeheTemp & " " & ortsCodeEndung
                 End If
             End If
-        End If
 
-        'W A L D K A N T E
-        'Waldkantedaten und Splint anhand des aktuellen Startjahres in der Quelltabelle finden
-        'W/S Zahl -> Zahl extrahieren -> +1 bei dem Jahr in der Zieltabelle
-        waldkanteMatch = Application.Match("W " & jahr, Columns(datierungCell.Column), 0)
-        splintMatch = Application.Match("S " & jahr, Columns(datierungCell.Column), 0)
-        If IsError(waldkanteMatch) And IsError(splintMatch) Then
-             Debug.Print n
-             GoTo NextIterationi
-        Else
-            Debug.Print Y
-        End If
+            'W A L D K A N T E
+            'Waldkantedaten und Splint anhand des aktuellen Startjahres in der Quelltabelle finden
+            'W/S Zahl -> Zahl extrahieren -> +1 bei dem Jahr in der Zieltabelle
+            If Left$(Cells(counter, datierungCell.Column).Value, 1) = "W" Then
 
-        'Waldkante setzen
-        If Not IsError(waldkanteMatch) Then
-            'für gefundende Waldkantedaten Wert hochzählen, Wert in der Zieltabelle hochzählen
-            If IsEmpty(markWaldkanteSheet.Cells(counter + 1, 4).Value) Then
-                markWaldkanteSheet.Cells(counter + 1, 4).Value = 1
-            Else
-                markWaldkanteSheet.Cells(counter + 1, 4).Value = markWaldkanteSheet.Cells(counter + 1, 4).Value + 1
+                destAnfangsjahrFound = False
+
+                'alle Zellen der Zieltabelle nach dem Anfangsjahr durchsuchen
+                For Each waldkanteTempCell In destAnfangsjahrRange
+                    If waldkanteTempCell.Value = CInt(Mid(Cells(counter, datierungCell.Column).Value, 3, Len(Cells(counter, datierungCell.Column).Value))) Then
+                        destAnfangsjahrFound = True
+                        waldkanteRow = waldkanteTempCell.Row
+                    End If
+                    'aus dem Loop springen, sobald der Wert gefunden wurde
+                    If destAnfangsjahrFound Then Exit For
+                Next waldkanteTempCell
+
+                If Trim(waldkanteRow & vbNullString) <> vbNullString Then
+                    'für gefundende Waldkantedaten Wert hochzählen, Wert in der Zieltabelle hochzählen
+                    waldkante = markWaldkanteSheet.Cells(waldkanteRow, 4).Value
+                    waldkanteNummer = markWaldkanteSheet.Cells(waldkanteRow, 8).Value
+
+                    If sourceDG <> "----" And nummernAndDG Then
+                        waldkanteTemp = sourceDG
+                    Else
+                        waldkanteTemp = sourceNummer
+                    End If
+
+                    If waldkante = 0 Then
+                        markWaldkanteSheet.Cells(waldkanteRow, 4).Value = 1
+                    Else
+                        markWaldkanteSheet.Cells(waldkanteRow, 4).Value = waldkante + 1
+                    End If
+
+                    If Trim(waldkanteNummer & vbNullString) = vbNullString Then
+                        markWaldkanteSheet.Cells(waldkanteRow, 8).Value = waldkanteTemp & " " & ortsCodeEndung
+                    Else
+                        markWaldkanteSheet.Cells(waldkanteRow, 8).Value = waldkanteNummer & ", " & waldkanteTemp & " " & ortsCodeEndung
+                    End If
+                End If
             End If
-        End If
 
-        'Splint setzen
-        If Not IsError(splintMatch) Then
-            'für gefundende Splint Wert, Wert in der Zieltabelle hochzählen
-            If IsEmpty(markWaldkanteSheet.Cells(counter + 1, 5).Value) Then
-                markWaldkanteSheet.Cells(counter + 1, 5).Value = 1
-            Else
-                markWaldkanteSheet.Cells(counter + 1, 5).Value = markWaldkanteSheet.Cells(counter + 1, 5).Value + 1
+            ' S P L I N T
+            If Left$(Cells(counter, datierungCell.Column).Value, 1) = "S" Then
+
+                destAnfangsjahrFound = False
+
+                'alle Zellen der Zieltabelle nach dem Anfangsjahr durchsuchen
+                For Each splintTempCell In destAnfangsjahrRange
+                    If splintTempCell.Value = CInt(Mid(Cells(counter, datierungCell.Column).Value, 3, Len(Cells(counter, datierungCell.Column).Value))) Then
+                        destAnfangsjahrFound = True
+                        splintRow = splintTempCell.Row
+                    End If
+                    'aus dem Loop springen, sobald der Wert gefunden wurde
+                    If destAnfangsjahrFound Then Exit For
+                Next splintTempCell
+
+                If Trim(splintRow & vbNullString) <> vbNullString Then
+                    'für gefundende Waldkantedaten Wert hochzählen, Wert in der Zieltabelle hochzählen
+                    splint = markWaldkanteSheet.Cells(splintRow, 5).Value
+                    splintNummer = markWaldkanteSheet.Cells(splintRow, 9).Value
+
+                    If sourceDG <> "----" And nummernAndDG Then
+                        splintTemp = sourceDG
+                    Else
+                        splintTemp = sourceNummer
+                    End If
+
+                    If splint = 0 Then
+                        markWaldkanteSheet.Cells(splintRow, 5).Value = 1
+                    Else
+                        markWaldkanteSheet.Cells(splintRow, 5).Value = splint + 1
+                    End If
+
+                    If Trim(splintNummer & vbNullString) = vbNullString Then
+                        markWaldkanteSheet.Cells(splintRow, 9).Value = splintTemp & " " & ortsCodeEndung
+                    Else
+                        markWaldkanteSheet.Cells(splintRow, 9).Value = splintNummer & ", " & splintTemp & " " & ortsCodeEndung
+                    End If
+                End If
             End If
         End If
 
@@ -199,6 +364,10 @@ Function insertNewTable(diff As Long, minStartDate As Long, newSheetName As Stri
     wks.Cells(1, 3).Value = "Marknähe"
     wks.Cells(1, 4).Value = "Waldkante"
     wks.Cells(1, 5).Value = "Splint"
+    wks.Cells(1, 6).Value = "Marknummer"
+    wks.Cells(1, 7).Value = "Marknähenummer"
+    wks.Cells(1, 8).Value = "Waldkantenummer"
+    wks.Cells(1, 9).Value = "Splintnummer"
 
     Set insertNewTable = wks
 
@@ -269,7 +438,6 @@ Function getMaxEndDate(sourceSheet) As Long
     Dim splintMatch As Variant
     Dim numberOfsplintDatierungen As Long
     Dim counter As Long
-
     Dim splintDatierungCell As Range
     Dim splintDatierungSearchString As String
     Dim splintDatierungString As String
@@ -296,7 +464,6 @@ Function getMaxEndDate(sourceSheet) As Long
 
     'zählen, wie viele Datierungs Zeilen es gibt, über die iterieren wir
     numberOfsplintDatierungen = WorksheetFunction.Count(splintDatierungCell.EntireColumn)
-    numberOfsplintDatierungen = 9
 
     'iterieren über die Datierungsspalte
     For counter = 2 To numberOfsplintDatierungen + 1
@@ -307,10 +474,10 @@ Function getMaxEndDate(sourceSheet) As Long
         If Mid(splintDatierungString, 1, 1) = "S" Then
             splintDatierungJahr = Mid(Cells(counter, splintDatierungCell.Column).Value, 3, Len(splintDatierungString) - 2)
 
-            ' Array Größe anpassen
+            ' change / adjust the size of array
             ReDim Preserve splintDatierungen(0 To UBound(splintDatierungen) + 1) As Variant
 
-            ' Jahr ins Array schieben
+            ' add value on the end of the array
             splintDatierungen(UBound(splintDatierungen)) = splintDatierungJahr
         Else
             'aus dem Loop springen
@@ -321,11 +488,11 @@ NextIterationCounter:
 
 
     'größtes Datierungsjahr finden
-    maxSplintDatierungJahr = Application.WorksheetFunction.max(splintDatierungen)
+    maxSplintDatierungJahr = Application.WorksheetFunction.Max(splintDatierungen)
     'größtes Endjahr finden
-    maxEndDate = Application.WorksheetFunction.max(sourceSheet.Columns(endjahrCell.Column))
+    maxEndDate = Application.WorksheetFunction.Max(sourceSheet.Columns(endjahrCell.Column))
 
-    getMaxEndDate = Application.WorksheetFunction.max(maxSplintDatierungJahr, maxEndDate)
+    getMaxEndDate = Application.WorksheetFunction.Max(maxSplintDatierungJahr, maxEndDate)
 End Function
 
 ''======================================================================================================
@@ -343,4 +510,3 @@ Function sheetExists(sheetToFind As String) As Boolean
         End If
     Next Sheet
 End Function
-
